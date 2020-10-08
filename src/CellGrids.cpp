@@ -4,7 +4,7 @@ CellGrids::CellGrids() {
     for(int i=0; i<100; ++i){
         for(int j=0; j<100; ++j){
             ccg[i][j] = 0;
-            ccid[i][j] = -1; // -1 because 0 is the first index of a list
+            ccid[i][j] = -1;
             m0g[i][j] = 0;
             m1g[i][j] = 0;
             m2g[i][j] = 0;
@@ -15,7 +15,7 @@ CellGrids::CellGrids() {
         }
     }
 
-    // set boundries to prevent cells from leaving the environment
+    // set boundries
     for(int i=0;i<100;i++){
         for(int j=0;j<100;j++){
             allCells[i][0] = 1;
@@ -25,7 +25,7 @@ CellGrids::CellGrids() {
         }
     }
 
-    // set vasculature (entry points for immune cells)
+    // set vasculature (entry points for cells)
     for(int i=30;i<70;i++){
         for(int j=30;j<70;j++){
             for(int k=30;k<70;k++){

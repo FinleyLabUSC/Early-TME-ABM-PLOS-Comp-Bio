@@ -14,7 +14,7 @@
 
 class Environment{
 public:
-    Environment(double stepSize, std::string folder, int set, double ifng, double il4, int perturb, double perturbTime, double perturbLvl);
+    Environment(double stepSize, std::string folder, int set, double macRecRate, double cancerProl, int perturb, double perturbTime, double perturbLvl);
     void simulate(double days, double treatmentModulation, double timeOn);
 
 private:
@@ -33,11 +33,11 @@ private:
     void updateTimeCourses(int s, CellGrids &cg, Diffusibles &diff);
     void checkError(int s, CellGrids &cg);
     void printStep();
-    void clearGrids(CellGrids &cg, Diffusibles &diff);
-    void printFinalInfo(CellGrids &cg);
     double treatmentLevel(double treatmentModulation, double timeOn);
 
     std::string saveDir;
+
+    double cancerProlTime;
 
     // treatment params
     double PI3KTime;
@@ -48,7 +48,6 @@ private:
     double reclvl;
     double carBin;
 
-    // cycling  treatment
     double treatmentOn;
     double treatmentOff;
 
@@ -62,11 +61,11 @@ private:
     // diffusion parameters
     double D;
     double dx;
-    double k_Act; // tumor macrophage activation factor secretion rate
-    double k_IFNG; // t cell ifng secretion rate
-    double k_IL4; // tumor il4 secretion rate
+    double k_M1f;
+    double k_IL4;
+    double k_IFNG;
 
-    // time courses
+    // counts
     std::vector<double> times;
     std::vector<int> cc_num;
     std::vector<int> m0_num;
@@ -82,7 +81,6 @@ private:
     std::vector<double> TLS_avg;
     std::vector<double> IFNG_max;
     std::vector<double> IFNG_avg;
-    std::vector<double> volume;
 
     // T cell recruitment params (taken from Gong 2017)
     std::vector<int> cancer_deaths;
@@ -92,12 +90,13 @@ private:
     double ki;
     double r1;
 
-    double tstep; // time in hours of a time step
-    double macProb; // probability of recruiting a macrophage to a lattice site
+    // initiate other variables used in the simulation loop
+    double tstep;
+    double macProb;
 
     double endTime;
 
-    std::vector<int> attackedCancer; // cancer cell targeted by T cells at each simulation step
+    std::vector<int> attackedCancer;
 
     std::vector<std::vector<std::vector<double>>> macrophageWeights;
     std::vector<std::vector<std::vector<double>>> macrophageBiases;

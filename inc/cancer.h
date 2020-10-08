@@ -10,26 +10,22 @@
 
 class Cancer{
 public:
-    Cancer(std::array<int, 2> loc, int index, int initial);
+    Cancer(std::array<int, 2> loc, double prolTime, int index, int initial);
     void proliferate(CellGrids &cg, std::vector<Cancer> &cc_list);
     void simulate(std::vector<int> attackedCancer, double tsim, CellGrids &cg, std::vector<Cancer> &cc_list);
-
-    std::string state; // cell state
-    int idx; // index in cell list
-    std::array<int,2> location; // grid coordinates
+    std::string state;
+    int idx;
+    std::array<int,2> location;
 
 private:
-    double cellCycle; // length of cell cycle in hourse
-    double growth; // time spent in current cell cycle
-    int maxDivisions; // maximum number of divisions
-    int nDivisions; // current number of divisions
-    double life_span; // lifespan hours
-    double age; // current age in hours
-    double engagement; // total hours to be engaged  with a T cell before death
-    double dying; // hours of T cell engagement remaining before death
-
-    double kIL4c;
-    double kIFNGc;
+    double div;
+    double growth;
+    int maxDiv;
+    int nDiv;
+    double life_span;
+    double age;
+    double engagement;
+    double dying;
 };
 
 #endif //MTC_CANCER_H

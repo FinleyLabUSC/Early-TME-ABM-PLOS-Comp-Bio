@@ -13,10 +13,9 @@ public:
     void proliferate(CellGrids &cg, std::vector<CD8> &c8_list);
     int kill(CellGrids &cg);
     void simulate(double tstep, CellGrids &cg, std::vector<CD8> &c8_list);
-
-    std::string state; // cell state
-    int targetCancerCell; // cancer cell to kill
-    std::array<int, 2> location; // grid coordinates
+    std::string state;
+    int cc;
+    std::array<int, 2> location;
 
 private:
     double div;           // hr, division time
@@ -26,9 +25,9 @@ private:
     double life_span;  // hr, max age
     double age;           // hr, current age
 
-    double killing; // time left to kill a cancer cell
+    double killing;
     int kills;  // max number of tumor cells that can be killed
-    double engagementTime; // total time needed to kill a cancer cell
+    double engagementTime;
 };
 
 #endif //MTC_CD8_H

@@ -7,18 +7,16 @@ class Diffusibles {
 public:
     Diffusibles(double DX, double Dconst, double KIL4Tumor, double KIL4M2, double KIFNG, double KM1F);
     void diffusion(CellGrids cg, double tstep);
-
-    double activationFactor[100][100];
+    double M1f[100][100];
     double IL4[100][100];
     double IFNG[100][100];
-
 private:
-    double dx; // spatial step
-    double D; // diffusion constant
-    double kIL4Tumor; // tumor IL-4 secretion rate
-    double kIL4M2; // M2 IL-4 secretion rate
-    double kIFNG; // T cell IFN-G secretion rate
-    double kAct; // tumor macrophage activation factor secretion rate
+    double dx;
+    double D;
+    double kIL4Tumor;
+    double kIL4M2;
+    double kIFNG;
+    double kM1f;
 };
 
 

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <algorithm>
 
+
 extern std::random_device rd;
 
 Macrophage::Macrophage(std::array<int, 2> loc, std::vector<std::vector<std::vector<double>>> nnWeights, std::vector<std::vector<std::vector<double>>> nnBiases, int initial){
@@ -13,13 +14,11 @@ Macrophage::Macrophage(std::array<int, 2> loc, std::vector<std::vector<std::vect
     reDiff = 0;
 
     std::uniform_real_distribution<double> life(0.0,1.0);
-    life_span = 24*30;
-    // randomize age of initial macrophages so  they don't all die at once
+    life_span = 24*30;  // hr, max age
     if(initial == 1) {
         age = life_span*life(rd);           // hr, current age
     } else {age=0;}
 
-    // from Wells 2015
     activationThreshold = 8e-6;
 
     // neural network parameters
@@ -27,12 +26,11 @@ Macrophage::Macrophage(std::array<int, 2> loc, std::vector<std::vector<std::vect
     biases = nnBiases;
 
     // NN inputs
-    k15 = 1.16; 
+    k15 = 1.16; // phosphorylation of AKT, represents PI3K | NN training: 0 - 1.16
 }
 
 void Macrophage::migrate(CellGrids &cg, Diffusibles &diff){
     // chemotax towards IL4
-    // similar process as in CD8.cpp
 
     int i = location[0];
     int j = location[1];
@@ -62,7 +60,6 @@ void Macrophage::migrate(CellGrids &cg, Diffusibles &diff){
         }
     }
 
-    // weight the highest site a little bit
     probs[maxIdx] = 3*probs[maxIdx];
 
     double norm_probs[4];
@@ -113,18 +110,15 @@ void Macrophage::migrate(CellGrids &cg, Diffusibles &diff){
 int Macrophage::activate(std::vector<std::vector<double> > outside) {
     // use the neural network to determine phenotype upon activation
 
-    // scaling parameters from Monte Carlo simulations and NN training
     std::vector<double> maxes = {5e4, 2e4, 1.16};
     std::vector<double> mins = {0.0, 0.0, 0.0};
 
-    // scale the inputs
     for(int i=0; i<outside.size(); ++i){
         for(int j=0; j<outside[0].size(); ++j){
             outside[i][j] = (outside[i][j] - mins[j])/(maxes[j] - mins[j]);
         }
     }
 
-    // predict differentiation
     int diffState = neuralNetwork(outside);
 
     return diffState;
@@ -188,11 +182,11 @@ std::vector<std::vector<double>> Macrophage::sigmoid(std::vector<std::vector<dou
     std::vector<std::vector<double>> y;
 
     for(int i=0; i<x.size(); ++i){
-        std::vector<double> someVector;
+        std::vector<double> bleh;
         for(int j=0; j<x[0].size(); j++){
-            someVector.push_back(0);
+            bleh.push_back(0);
         }
-        y.push_back(someVector);
+        y.push_back(bleh);
     }
 
     for(int i=0; i<x.size(); ++i){
@@ -209,16 +203,14 @@ void Macrophage::simulate(double tstep, CellGrids &cg, Diffusibles &diff, double
         return;
     }
 
-    // if macrophage depletion immunotherapy is present, see if macrophage dies
     std::uniform_real_distribution<double> dis(0.0,1.0);
-    if(dis(rd) < depletion){state = "dead"; return;}
+    if(dis(rd) < depletion){state = "dead"; return;} // die from drug
 
     int i = location[0];
     int j = location[1];
 
-    double actSig = diff.activationFactor[i][j];
+    double actSig = diff.M1f[i][j];
 
-    // die of age
     age = age + tstep;
     if(age >= life_span){
         state = "dead";
@@ -230,7 +222,6 @@ void Macrophage::simulate(double tstep, CellGrids &cg, Diffusibles &diff, double
         reDiff = 0;
     }
 
-    // activation from Wells 2015 (threshold of activation signal)
     // differentiation based on neural network
     // neural network trained on ODE model from Zhao 2019
     if((actSig >= activationThreshold && state == "M0") || (actSig>=activationThreshold && state!="M0" && reDiff==0)){
@@ -255,8 +246,3 @@ void Macrophage::simulate(double tstep, CellGrids &cg, Diffusibles &diff, double
 
     migrate(cg, diff);
 }
-
-/* REFERENCES
- * ----------
- * Zhao et al. "A mechanistic integrative computational model of macrophage polarization: implications in human pathophysiology." PLOS Comp Bio 2019
- */

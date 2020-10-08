@@ -6,18 +6,16 @@
 #include <algorithm>
 
 /*
- * Immunotherapies
+ * Perturbations
  * -------------
  * 0 - Recruitment inhibition
  * 1 - Macrophage depletion
- * 2 - PI3K inhibition
+ * 2 - PI3K
  */
 
 std::random_device rd;
 
-Environment::Environment(double stepSize, std::string folder, int set, double ifng, double il4, int perturb, double perturbTime, double perturbLvl){
-    // infg is the secretion rate for T cells
-
+Environment::Environment(double stepSize, std::string folder, int set, double macRecRate, double cancerProl, int perturb, double perturbTime, double perturbLvl){
     // directory to save time courses to
     saveDir = "./"+folder+"/set_"+std::to_string(set);
 
@@ -30,20 +28,22 @@ Environment::Environment(double stepSize, std::string folder, int set, double if
     treatmentOn = 0;
     treatmentOff = 0;
 
-    // cytokine production rates of tumor cells
-    k_IL4 = il4;
+    // base cytokine production rates of tumor cells
+    k_IL4 = 10;
 
     // other parameters
     tstep = stepSize; // hours
 
     // diffusion parameters
-    D = 3e-7;
-    dx = 0.0015;
-
-    k_Act = 1e-7; // pg/(cell*sec)
+    D = 3e-7; // Wells 2015
+    dx = 0.0015; // from Hao 2018 it seems that the avg cancer cell diameter is around 15 um
+    // The following secretions rates are in pg/(cell*sec)
+    // taken from Wells 2015
+    k_M1f = 1e-7;
 
     // based on Han 2010
-    k_IFNG = ifng;
+    // molecules/second
+    k_IFNG = 26;
 
     // T Cell recruitment parameters
     // Gong 2017
@@ -53,7 +53,9 @@ Environment::Environment(double stepSize, std::string folder, int set, double if
     ki = 0.01; // dimensionless
     r1 = 6.0; // cells/hr. Originally, theirs was 1/time_step, with time_step = 10 min
 
-    macProb = 1e-8;
+    macProb = macRecRate; // cells/(lattice site * sec * vasculature) Wells 2015
+
+    cancerProlTime = cancerProl;
 
     endTime = 0;
 }
@@ -112,11 +114,10 @@ void Environment::loadParameters(int perturb, double time, double level) {
     deplvl = params[3]; // percent to reduce arg1Prod
     PI3KTime = params[4]; // time (days) when treatment is introduced
     PI3Klvl = params[5]; // percent to reduce macprob in macrophage recruitment
-
 }
 
 void Environment::plot(CellGrids &cg, Diffusibles &diff, int s){
-    // outputs spatial state of the simulation
+    // outputs final spatial state of the simulation
 
     std::string str = "mkdir -p "+saveDir+"/spatial/"+std::to_string(s);
     std::system(str.c_str());
@@ -126,27 +127,7 @@ void Environment::plot(CellGrids &cg, Diffusibles &diff, int s){
     for(int i=0; i<100; ++i){
         myfile << cg.ccg[i][0] + 2*cg.m0g[i][0] + 3*cg.m1g[i][0] + 4*cg.m2g[i][0] + 5*cg.c8g[i][0] + 6*cg.actT[i][0];
         for(int j=1; j<100; ++j){
-            myfile << "," << cg.ccg[i][j] + 2*cg.m0g[i][j] + 3*cg.m1g[i][j] + 4*cg.m2g[i][j] + 5*cg.c8g[i][j] + 6*cg.actT[i][j];
-        }
-        myfile << std::endl;
-    }
-    myfile.close();
-
-    myfile.open(saveDir+"/spatial/"+std::to_string(s)+"/IFNG.csv");
-    for(int i=0; i<100; ++i){
-        myfile << diff.IFNG[i][0];
-        for(int j=1; j<100; ++j){
-            myfile << "," << diff.IFNG[i][j];
-        }
-        myfile << std::endl;
-    }
-    myfile.close();
-
-    myfile.open(saveDir+"/spatial/"+std::to_string(s)+"/IL4.csv");
-    for(int i=0; i<100; ++i){
-        myfile << diff.IL4[i][0];
-        for(int j=1; j<100; ++j){
-            myfile << "," << diff.IL4[i][j];
+            myfile << "," << cg.ccg[i][j] + 2*cg.m0g[i][j] + 3*cg.m1g[i][j] + 4*cg.m2g[i][j] + 5*cg.c8g[i][j] + cg.actT[i][j];
         }
         myfile << std::endl;
     }
@@ -154,7 +135,7 @@ void Environment::plot(CellGrids &cg, Diffusibles &diff, int s){
 }
 
 void Environment::save(){
-    // saves time courses of the simulation
+    // outputs time courses of the simulation
 
     std::fstream myfile;
 
@@ -347,8 +328,6 @@ void Environment::recruitMacrophage(CellGrids &cg, double rec) {
     // randomly place them in available sites based on 
     // vasculature presence 
 
-    // rec is recruitment inhibition (0 if not used)
-
     std::mt19937 g(rd());
     std::uniform_real_distribution<double> dis(0.0,1.0);
     double p;
@@ -387,7 +366,6 @@ void Environment::recruitTcells(int simStep, CellGrids &cg) {
 
         std::vector<std::vector<int>> entry_points;
 
-        // recruit to random sites
         int i, j;
         for(int q=0; q<num2rec; q++){
             i = 50;
@@ -417,7 +395,6 @@ void Environment::recruitTcells(int simStep, CellGrids &cg) {
 void Environment::run_Macrophage(CellGrids &cg, Diffusibles &diff, double pi3k, double depletion) {
     // simulate macrophages present in simulation
 
-    // randomize order to run cells
     std::vector<int> run;
     for(int q=0; q<mp_list.size(); q++){
         run.push_back(q);
@@ -426,7 +403,7 @@ void Environment::run_Macrophage(CellGrids &cg, Diffusibles &diff, double pi3k, 
     std::shuffle(run.begin(), run.end(), g);
 
     for(int l : run){
-        mp_list[l].k15 = pi3k; // set pi3k inhibition if the immunotherapy is being used
+        mp_list[l].k15 = pi3k;
         mp_list[l].simulate(tstep, cg, diff, depletion);
     }
 }
@@ -434,7 +411,6 @@ void Environment::run_Macrophage(CellGrids &cg, Diffusibles &diff, double pi3k, 
 void Environment::run_CD8(CellGrids &cg) {
     // simulate T cells present in simulation
 
-    // randomize order to run cells
     std::vector<int> run;
     for(int q=0; q<c8_list.size(); q++){
         run.push_back(q);
@@ -444,14 +420,13 @@ void Environment::run_CD8(CellGrids &cg) {
 
     for(int l : run){
         c8_list[l].simulate(tstep, cg, c8_list);
-        if(c8_list[l].targetCancerCell!=-1){attackedCancer.push_back(c8_list[l].targetCancerCell);}
+        if(c8_list[l].cc!=-1){attackedCancer.push_back(c8_list[l].cc);}
     }
 }
 
 void Environment::run_Cancer(CellGrids &cg){
     // simulate cancer cells present in simulation
 
-    // randomize order to run cells
     std::vector<int> run;
     for(int q=0; q<cc_list.size(); q++){
         run.push_back(q);
@@ -472,7 +447,6 @@ void Environment::run_Cancer(CellGrids &cg){
 
 void Environment::removeDead(CellGrids &cg) {
     // remove any dead cells from the grids
-    // a bit redundant with the function that removes dead cells from lists
 
     for(auto & cell : cc_list){
         if(cell.state=="dead"){
@@ -521,7 +495,7 @@ void Environment::initializeCells(CellGrids &cg) {
             cg.allCells[i][j] = 1;
             cg.ccid[i][j] = z;
 
-            cc_list.push_back(Cancer({i,j}, z, 1));
+            cc_list.push_back(Cancer({i,j}, cancerProlTime, z, 1));
             z++;
         }
     }
@@ -544,7 +518,6 @@ void Environment::initializeCells(CellGrids &cg) {
 void Environment::updateTimeCourses(int s, CellGrids &cg, Diffusibles &diff) {
     // for each time course, set the number of 
     // each cell type at step s
-    // along with cytokine levels
 
     int sumc = 0;
     int sum0 = 0;
@@ -569,11 +542,11 @@ void Environment::updateTimeCourses(int s, CellGrids &cg, Diffusibles &diff) {
             sum2 += cg.m2g[i][j];
             sum8 += cg.c8g[i][j];
             avgIL4 += diff.IL4[i][j];
-            avgAct += diff.activationFactor[i][j];
+            avgAct += diff.M1f[i][j];
             avgIFNG += diff.IFNG[i][j];
 
             if(diff.IL4[i][j] > maxIL4){maxIL4=diff.IL4[i][j];}
-            if(diff.activationFactor[i][j] > maxAct){maxAct=diff.activationFactor[i][j];}
+            if(diff.M1f[i][j] > maxAct){maxAct=diff.M1f[i][j];}
             if(diff.IFNG[i][j] > maxIFNG){maxIFNG=diff.IFNG[i][j];}
 
             if(cg.c8g[i][j]==0 && cg.actT[i][j]==1){
@@ -584,7 +557,7 @@ void Environment::updateTimeCourses(int s, CellGrids &cg, Diffusibles &diff) {
                 std::cout << "actT: " << cg.actT[i][j] << std::endl;
                 std::cout << "c8g: " <<  cg.c8g[i][j] << std::endl;
                 std::cout << cg.allCells[i][j] << std::endl;
-                throw std::runtime_error("environment.cpp:587");
+                throw std::runtime_error("done fucked up");
             }
         }
     }
@@ -610,9 +583,6 @@ void Environment::updateTimeCourses(int s, CellGrids &cg, Diffusibles &diff) {
     IFNG_avg.push_back(avgIFNG);
     IFNG_max.push_back(maxIFNG);
 
-    double tumorVolume = sumc*(dx*dx); // cm^2
-    volume.push_back(tumorVolume);
-
     int activeTcells = 0;
     for(auto & cell : c8_list){
         if(cell.state == "active"){
@@ -631,8 +601,8 @@ void Environment::checkError(int s, CellGrids &cg) {
     // and that no cells are missing from the grid
     // or occupying the same space
 
-    // none of these errors are thrown during simulation
-    // leaving it for future model extensions
+    // left over from model development
+    // should not throw any errors at all during simulation
 
     int sumc = cc_num[s];
     int sum8 = c8_num[s];
@@ -644,7 +614,7 @@ void Environment::checkError(int s, CellGrids &cg) {
     for(int i=1; i<99; ++i){
         for(int j=1; j<99; ++j){
             if(cg.allCells[i][j] > 1){
-                throw std::runtime_error("environment.cpp:647");
+                throw std::runtime_error("environment::617.");
             }
             allSum += cg.allCells[i][j];
         }
@@ -674,14 +644,14 @@ void Environment::checkError(int s, CellGrids &cg) {
 
     if(cancercels != sumc){
         std::cout << cancercels << " " << sumc << " " << cc_list.size() << " " << allSum << std::endl;
-        throw std::runtime_error("environment.cpp:677");
+        throw std::runtime_error("environment::647");
     }
     if(tcells != sum8){
-        throw std::runtime_error("environment.cpp:680");
+        throw std::runtime_error("environment::650");
     }
     if(macrophages != (sum0 + sum1 + sum2)){
         std::cout << macrophages << " " << sum0 << " " << sum1 << " " << sum2 << std::endl;
-        throw std::runtime_error("environment.cpp:684");
+        throw std::runtime_error("environment::654");
     }
     if(sumc+sum0+sum1+sum2+sum8 != allSum){
         std::cout << "allSum: " << allSum << std::endl;
@@ -708,13 +678,12 @@ void Environment::checkError(int s, CellGrids &cg) {
                 }
             }
         }
-        throw std::runtime_error("environment.cpp:711");
+        throw std::runtime_error("environment::681");
     }
 }
 
 void Environment::printStep() {
     // print current state of the simulation
-
     int s = cc_num.size() - 1;
 
     std::cout<< "-------------------------\n"
@@ -733,60 +702,7 @@ void Environment::printStep() {
              << "Cancer Deaths: " << cancer_deaths[cancer_deaths.size() - 1] << "\n";
 }
 
-void Environment::clearGrids(CellGrids &cg, Diffusibles &diff) {
-    // resets all the variables at the end of simulation
-    // this function is an artifact from a previous version
-    // I don't think it's needed, but it's left here
-
-    cc_list.clear();
-    mp_list.clear();
-    c8_list.clear();
-
-    for(int i=0; i<100; i++){
-        for(int j=0; j<100; j++){
-            cg.ccg[i][j] = 0;
-            cg.ccid[i][j] = -1;
-            cg.mpg[i][j] = 0;
-            cg.m0g[i][j] = 0;
-            cg.m1g[i][j] = 0;
-            cg.m2g[i][j] = 0;
-            cg.c8g[i][j] = 0;
-            cg.actT[i][j] = 0;
-            cg.allCells[i][j] = 0;
-            cg.vas[i][j] = 1;
-
-            diff.activationFactor[i][j] = 0;
-            diff.IL4[i][j] = 0;
-            diff.IFNG[i][j] = 0;
-        }
-    }
-}
-
-void Environment::printFinalInfo(CellGrids &cg) {
-    // print final cell counts
-
-    int ccs = 0;
-    int m1s = 0;
-    int m2s = 0;
-    int c8s = 0;
-    int acts = 0;
-
-    for(int i=1; i<99; i++){
-        for(int j=1; j<99; j++){
-            ccs += cg.ccg[i][j];
-            m1s += cg.m1g[i][j];
-            m2s += cg.m2g[i][j];
-            c8s += cg.c8g[i][j];
-            acts += cg.actT[i][j];
-        }
-    }
-
-    std::cout << endTime  << " " << ccs << " " << m1s << " " << m2s << " " << c8s << " " << acts << std::endl;
-}
-
 double Environment::treatmentLevel(double treatmentModulation, double timeOn) {
-    // if  treatment is being modulated, turn it on and off
-
     // if treatmentModulation = 0, assume always on
     if(treatmentModulation == 0){
         return 1;
@@ -799,33 +715,33 @@ double Environment::treatmentLevel(double treatmentModulation, double timeOn) {
     if(treatmentOn > 0){
         treatmentOn -= tstep;
         if(treatmentOn <= 0){treatmentOff = treatmentModulation - timeOn;}
+        //std::cout << "On\n";
         return 1;
     }
     if(treatmentOff > 0){
         treatmentOff -= tstep;
         if(treatmentOff <= 0){treatmentOn = timeOn;}
+        //std::cout << "Off\n";
         return 0;
     }
 
-    // none of these errors throw
     if((treatmentOn<=0 && treatmentOff<=0)){
-        throw std::runtime_error("environment.cpp:812");
+        throw std::runtime_error("Environment::729");
     }
 
-    // function shouldn't be able to reach this error
-    throw std::runtime_error("environment.cpp:816");
+    throw std::runtime_error("environment732");
 }
 
 void Environment::simulate(double days, double treatmentModulation, double timeOn){
     // run a simulation
 
-    // time on is the number of days that
+    // time on is the percent of treatmentModulation that
     // treatment is on for
     treatmentOn = timeOn*24;
 
     //create grids for cells and diffusibles
     CellGrids cg;
-    Diffusibles diff(dx, D, k_IL4, 10, k_IFNG, k_Act);
+    Diffusibles diff(dx, D, k_IL4, 10, k_IFNG, k_M1f);
 
     // place initial cells
     initializeCells(cg);
@@ -836,7 +752,6 @@ void Environment::simulate(double days, double treatmentModulation, double timeO
     double rec = 1;
 
     for(int s=0; s<days*24/tstep; s++){
-        // treatment modulation
         if(s*tstep/24 >= PI3KTime && PI3Klvl > 0){pi3k = 1.16*(1 - PI3Klvl*treatmentLevel(treatmentModulation*24, 24*timeOn));}
         if(s*tstep/24 >= depTime && deplvl > 0){depletion = deplvl*treatmentLevel(treatmentModulation*24, 24*timeOn);}
         if(s*tstep/24 >= recTime && reclvl > 0){rec = 1*(1 - reclvl*treatmentLevel(treatmentModulation*24, 24*timeOn));}
@@ -853,17 +768,15 @@ void Environment::simulate(double days, double treatmentModulation, double timeO
         updateTimeCourses(s, cg, diff);
         checkError(s, cg);
 
-        printStep();
+        //printStep();
         //if(fmod(s*tstep, 24) == 0 && (s*tstep/24)>=100){
         //    plot(cg, diff, s);
         //}
 
         if(cc_num[s] == 0 || cc_num[s] > 5000){break;}
     }
-    //plot();
+    //plot(cg, diff, 0);
     save();
-    //printFinalInfo(cg);
-    clearGrids(cg, diff);
 }
 
 /*
