@@ -15,7 +15,7 @@
 
 std::random_device rd;
 
-Environment::Environment(double stepSize, std::string folder, int set, double macRecRate, double cancerProl, int perturb, double perturbTime, double perturbLvl){
+Environment::Environment(double stepSize, std::string folder, int set, double macRecRate, double cancerProl, int perturb, double perturbTime, double perturbLvl, int rep=0){
     // directory to save time courses to
     saveDir = "./"+folder+"/set_"+std::to_string(set);
 
@@ -58,6 +58,9 @@ Environment::Environment(double stepSize, std::string folder, int set, double ma
     cancerProlTime = cancerProl;
 
     endTime = 0;
+
+    //replicate_id
+    rep_id = rep; 
 }
 
 void Environment::loadNNParameters() {
@@ -123,7 +126,7 @@ void Environment::plot(CellGrids &cg, Diffusibles &diff, int s){
     std::system(str.c_str());
 
     std::ofstream myfile;
-    myfile.open(saveDir+"/spatial/"+std::to_string(s)+"/ccg.csv");
+    myfile.open(saveDir+"/spatial/"+std::to_string(s)+"/ccg.csv", std::ios_base::app);
     for(int i=0; i<100; ++i){
         myfile << cg.ccg[i][0] + 2*cg.m0g[i][0] + 3*cg.m1g[i][0] + 4*cg.m2g[i][0] + 5*cg.c8g[i][0] + 6*cg.actT[i][0];
         for(int j=1; j<100; ++j){
@@ -132,6 +135,33 @@ void Environment::plot(CellGrids &cg, Diffusibles &diff, int s){
         myfile << std::endl;
     }
     myfile.close();
+}
+
+
+void Environment::logLoc(int s){
+    std::fstream myfile; 
+
+    //log cancer cell location
+    myfile.open(saveDir + "/cancer_cell_location_rep_"+ std::to_string(rep_id) + "/" + std::to_string(s) + ".csv", std::ios_base::app);     
+    for(auto c_cell : cc_list){
+        myfile << c_cell.location[0] << ',' << c_cell.location[1] <<  "," << c_cell.state << "\n";
+    }
+    myfile.close(); 
+
+    //log cd8 t cell location
+    myfile.open(saveDir + "/cd8_cell_location_rep_" + std::to_string(rep_id) + "/" + std::to_string(s) + ".csv", std::ios_base::app);     
+    for(auto t_cell : c8_list){ 
+        myfile << t_cell.location[0] << ',' << t_cell.location[1] <<  "," << t_cell.state <<  "\n"; 
+    }
+    myfile.close();
+
+    //log macrophage cell location
+    myfile.open(saveDir + "/mac_cell_location_rep_" + std::to_string(rep_id) + "/"  + std::to_string(s) + ".csv", std::ios_base::app);     
+    for(auto mac_cell : mp_list){
+        myfile << mac_cell.location[0] << ',' << mac_cell.location[1] << "," << mac_cell.state << "\n"; 
+    }
+    myfile.close(); 
+    
 }
 
 void Environment::save(){
@@ -242,6 +272,7 @@ void Environment::save(){
     }
     myfile << std::endl;
     myfile.close();
+
 }
 
 void Environment::clean(CellGrids &cg){
@@ -751,6 +782,17 @@ void Environment::simulate(double days, double treatmentModulation, double timeO
     double depletion = 0;
     double rec = 1;
 
+    std::string make_cancer_cell_dir =  "mkdir -p " + saveDir+"/cancer_cell_location_rep_" + std::to_string(rep_id); 
+    std::string make_cd8_cell_dir =  "mkdir -p " + saveDir+"/cd8_cell_location_rep_"+ std::to_string(rep_id); 
+    std::string make_mac_cell_dir =  "mkdir -p " + saveDir+"/mac_cell_location_rep_"+ std::to_string(rep_id); 
+
+    std::system(make_cancer_cell_dir.c_str()); 
+    std::system(make_cd8_cell_dir.c_str()); 
+    std::system(make_mac_cell_dir.c_str()); 
+
+
+
+
     for(int s=0; s<days*24/tstep; s++){
         if(s*tstep/24 >= PI3KTime && PI3Klvl > 0){pi3k = 1.16*(1 - PI3Klvl*treatmentLevel(treatmentModulation*24, 24*timeOn));}
         if(s*tstep/24 >= depTime && deplvl > 0){depletion = deplvl*treatmentLevel(treatmentModulation*24, 24*timeOn);}
@@ -767,6 +809,7 @@ void Environment::simulate(double days, double treatmentModulation, double timeO
 
         updateTimeCourses(s, cg, diff);
         checkError(s, cg);
+        logLoc(s); 
 
         //printStep();
         //if(fmod(s*tstep, 24) == 0 && (s*tstep/24)>=100){
@@ -777,6 +820,8 @@ void Environment::simulate(double days, double treatmentModulation, double timeO
     }
     //plot(cg, diff, 0);
     save();
+    
+    
 }
 
 /*
