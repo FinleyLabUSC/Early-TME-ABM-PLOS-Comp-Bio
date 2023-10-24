@@ -142,23 +142,15 @@ void Environment::logLoc(int s){
     std::fstream myfile; 
 
     //log cancer cell location
-    myfile.open(saveDir + "/cancer_cell_location_rep_"+ std::to_string(rep_id) + "/" + std::to_string(s) + ".csv", std::ios_base::app);     
+    myfile.open(saveDir + "/location_rep_"+ std::to_string(rep_id) + "/" + std::to_string(s) + ".csv", std::ios_base::app);     
     for(auto c_cell : cc_list){
-        myfile << c_cell.location[0] << ',' << c_cell.location[1] <<  "," << c_cell.state << "\n";
+        myfile << c_cell.location[0] << ',' << c_cell.location[1] <<  "," << c_cell.state <<  "," << "cancer" << "\n";
     }
-    myfile.close(); 
-
-    //log cd8 t cell location
-    myfile.open(saveDir + "/cd8_cell_location_rep_" + std::to_string(rep_id) + "/" + std::to_string(s) + ".csv", std::ios_base::app);     
     for(auto t_cell : c8_list){ 
-        myfile << t_cell.location[0] << ',' << t_cell.location[1] <<  "," << t_cell.state <<  "\n"; 
+        myfile << t_cell.location[0] << ',' << t_cell.location[1] <<  "," << t_cell.state <<  "," << "cd8"  <<  "\n"; 
     }
-    myfile.close();
-
-    //log macrophage cell location
-    myfile.open(saveDir + "/mac_cell_location_rep_" + std::to_string(rep_id) + "/"  + std::to_string(s) + ".csv", std::ios_base::app);     
     for(auto mac_cell : mp_list){
-        myfile << mac_cell.location[0] << ',' << mac_cell.location[1] << "," << mac_cell.state << "\n"; 
+        myfile << mac_cell.location[0] << ',' << mac_cell.location[1] << "," << mac_cell.state  <<  "," << "macrophage" << "\n"; 
     }
     myfile.close(); 
     
@@ -782,13 +774,11 @@ void Environment::simulate(double days, double treatmentModulation, double timeO
     double depletion = 0;
     double rec = 1;
 
-    std::string make_cancer_cell_dir =  "mkdir -p " + saveDir+"/cancer_cell_location_rep_" + std::to_string(rep_id); 
-    std::string make_cd8_cell_dir =  "mkdir -p " + saveDir+"/cd8_cell_location_rep_"+ std::to_string(rep_id); 
-    std::string make_mac_cell_dir =  "mkdir -p " + saveDir+"/mac_cell_location_rep_"+ std::to_string(rep_id); 
+    std::string make_loc_dir =  "mkdir -p " + saveDir+"/location_rep_" + std::to_string(rep_id); 
 
-    std::system(make_cancer_cell_dir.c_str()); 
-    std::system(make_cd8_cell_dir.c_str()); 
-    std::system(make_mac_cell_dir.c_str()); 
+
+    std::system(make_loc_dir.c_str()); 
+    
 
 
 
